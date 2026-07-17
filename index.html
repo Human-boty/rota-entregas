@@ -161,16 +161,17 @@ function loadLeaflet() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function geocodeAddress(address) {
-    // ADICIONAMOS O '&email=' NO FINAL DA URL ABAIXO:
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&email=hiago.ig.games@gmail.com`;
+    const email = "hiago.ig.games@gmail.com";
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&email=${email}`;
+    
     try {
         const res = await fetch(url, {
             method: 'GET',
             headers: {
-                'User-Agent': 'RotaDeEntregasApp/1.0 (hiago.ig.games@gmail.com)' 
+                'User-Agent': `RotaDeEntregasApp/1.0 (${email})`
             }
         });
-        if (!res.ok) throw new Error("Serviço de endereços indisponível agora. Tente de novo em instantes.");
+        if (!res.ok) throw new Error("Serviço de endereços indisponível.");
         
         const data = await res.json();
         if (!data || data.length === 0) {
