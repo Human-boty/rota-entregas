@@ -161,14 +161,26 @@ function loadLeaflet() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function geocodeAddress(address) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
-    const res = await fetch(url, { headers: { "Accept-Language": "pt-BR" } });
-    if (!res.ok)
-        throw new Error("Serviço de endereços indisponível agora. Tenta de novo em instantes.");
-    const data = await res.json();
-    if (!data || data.length === 0)
-        throw new Error(`Não encontrei esse endereço: ${address}`);
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+    try {
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                // Lembre-se de colocar um e-mail seu aqui para a API do OpenStreetMap aceitar
+                'User-Agent': 'RotaDeEntregasApp/1.0 (hiago.ig.games@gmail.com)' 
+            }
+        });
+        if (!res.ok) throw new Error("Serviço de endereços indisponível agora. Tente de novo em instantes.");
+        
+        const data = await res.json();
+        if (!data || data.length === 0) {
+            throw new Error(`Não encontrei esse endereço: ${address}`);
+        }
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch (error) {
+        console.error("Erro no geocode:", error);
+        throw error;
+    }
 }
 async function fetchOSRMRoute(points) {
     const coordStr = points.map((p) => `${p.lng},${p.lat}`).join(";");
