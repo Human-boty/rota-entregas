@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Rota de Entregas</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#13161D" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Rota Entregas" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23FF6B35'/%3E%3Ctext x='50' y='68' font-size='55' text-anchor='middle' fill='%2313161D' font-family='sans-serif' font-weight='bold'%3ER%3C/text%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23FF6B35'/%3E%3Ctext x='50' y='68' font-size='55' text-anchor='middle' fill='%2313161D' font-family='sans-serif' font-weight='bold'%3ER%3C/text%3E%3C/svg%3E" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #13161D; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { useState, useEffect, useCallback, useRef } = React;
+
+/* ---- Armazenamento local (substitui o storage do Claude) ---- */
+window.storage = {
+  get: async (key) => {
+    const v = localStorage.getItem(key);
+    return v !== null ? { key, value: v, shared: false } : null;
+  },
+  set: async (key, value) => {
+    localStorage.setItem(key, value);
+    return { key, value, shared: false };
+  },
+  delete: async (key) => {
+    localStorage.removeItem(key);
+    return { key, deleted: true, shared: false };
+  },
+  list: async (prefix) => {
+    const keys = Object.keys(localStorage).filter((k) => !prefix || k.startsWith(prefix));
+    return { keys, prefix, shared: false };
+  },
+};
+
+"use strict";
+function Icon({ paths, size = 20, color = "currentColor", strokeWidth = 2, style, className }) {
+    return (React.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: strokeWidth, strokeLinecap: "round", strokeLinejoin: "round", style: style, className: className }, paths));
+}
+const Plus = (p) => React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M12 5v14" }),
+        React.createElement("path", { d: "M5 12h14" })) });
+const Minus = (p) => React.createElement(Icon, { ...p, paths: React.createElement("path", { d: "M5 12h14" }) });
+const X = (p) => React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M18 6 6 18" }),
+        React.createElement("path", { d: "M6 6l12 12" })) });
+const Check = (p) => React.createElement(Icon, { ...p, paths: React.createElement("path", { d: "M20 6 9 17l-5-5" }) });
+const ChevronUp = (p) => React.createElement(Icon, { ...p, paths: React.createElement("path", { d: "M18 15l-6-6-6 6" }) });
+const ChevronDown = (p) => React.createElement(Icon, { ...p, paths: React.createElement("path", { d: "M6 9l6 6 6-6" }) });
+const MapPin = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z" }),
+        React.createElement("circle", { cx: "12", cy: "10", r: "3" })) }));
+const Phone = (p) => (React.createElement(Icon, { ...p, paths: React.createElement("path", { d: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.06 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.31 1.6.57 2.36a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.72-1.72a2 2 0 0 1 2.11-.45c.76.26 1.55.44 2.36.57A2 2 0 0 1 22 16.92z" }) }));
+const Package = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "m7.5 4.27 9 5.15" }),
+        React.createElement("path", { d: "M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" }),
+        React.createElement("path", { d: "m3.3 7 8.7 5 8.7-5" }),
+        React.createElement("path", { d: "M12 22V12" })) }));
+const Navigation = (p) => React.createElement(Icon, { ...p, paths: React.createElement("path", { d: "M3 11l19-9-9 19-2-8-8-2z" }) });
+const Trash2 = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M3 6h18" }),
+        React.createElement("path", { d: "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" }),
+        React.createElement("path", { d: "M10 11v6" }),
+        React.createElement("path", { d: "M14 11v6" })) }));
+const Loader2 = (p) => React.createElement(Icon, { ...p, paths: React.createElement("path", { d: "M21 12a9 9 0 1 1-6.219-8.56" }) });
+const Truck = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M14 18V6a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h1" }),
+        React.createElement("path", { d: "M15 18H9" }),
+        React.createElement("path", { d: "M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" }),
+        React.createElement("circle", { cx: "7", cy: "18", r: "2" }),
+        React.createElement("circle", { cx: "17", cy: "18", r: "2" })) }));
+const UtensilsCrossed = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8" }),
+        React.createElement("path", { d: "M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7" }),
+        React.createElement("path", { d: "m2.1 21.8 6.4-6.3" }),
+        React.createElement("path", { d: "m19 5-7 7" })) }));
+const Wallet = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M21 12V7H5a2 2 0 0 1 0-4h14v4" }),
+        React.createElement("path", { d: "M3 5v14a2 2 0 0 0 2 2h16v-5" }),
+        React.createElement("path", { d: "M18 12a2 2 0 0 0 0 4h4v-4Z" })) }));
+const Calendar = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M8 2v4" }),
+        React.createElement("path", { d: "M16 2v4" }),
+        React.createElement("rect", { x: "3", y: "4", width: "18", height: "18", rx: "2" }),
+        React.createElement("path", { d: "M3 10h18" })) }));
+const Route = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("circle", { cx: "6", cy: "19", r: "3" }),
+        React.createElement("path", { d: "M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" }),
+        React.createElement("circle", { cx: "18", cy: "5", r: "3" })) }));
+const Search = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("circle", { cx: "11", cy: "11", r: "8" }),
+        React.createElement("path", { d: "m21 21-4.3-4.3" })) }));
+const Wand2 = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "m21 3-6.5 6.5" }),
+        React.createElement("path", { d: "M15 3h6v6" }),
+        React.createElement("path", { d: "M3 21 14 10" }),
+        React.createElement("path", { d: "M3 3v4" }),
+        React.createElement("path", { d: "M3 3h4" }),
+        React.createElement("path", { d: "M17 21v-4" }),
+        React.createElement("path", { d: "M17 21h4" })) }));
+const AlertTriangle = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "m10.29 3.86-8.18 14.18A2 2 0 0 0 4 21h16a2 2 0 0 0 1.89-2.96L13.71 3.86a2 2 0 0 0-3.42 0Z" }),
+        React.createElement("path", { d: "M12 9v4" }),
+        React.createElement("path", { d: "M12 17h.01" })) }));
+const Download = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
+        React.createElement("path", { d: "M7 10l5 5 5-5" }),
+        React.createElement("path", { d: "M12 15V3" })) }));
+const Upload = (p) => (React.createElement(Icon, { ...p, paths: React.createElement(React.Fragment, null,
+        React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
+        React.createElement("path", { d: "M17 8l-5-5-5 5" }),
+        React.createElement("path", { d: "M12 3v12" })) }));
+const FONT_DISPLAY = "'Barlow Condensed', sans-serif";
+const FONT_BODY = "'Inter', sans-serif";
+function loadFonts() {
+    if (document.getElementById("rota-fonts"))
+        return;
+    const link = document.createElement("link");
+    link.id = "rota-fonts";
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap";
+    document.head.appendChild(link);
+}
+function loadLeaflet() {
+    return new Promise((resolve, reject) => {
+        if (window.L) {
+            resolve(window.L);
+            return;
+        }
+        if (!document.getElementById("leaflet-css")) {
+            const link = document.createElement("link");
+            link.id = "leaflet-css";
+            link.rel = "stylesheet";
+            link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
+            document.head.appendChild(link);
+        }
+        let script = document.getElementById("leaflet-js");
+        if (script) {
+            script.addEventListener("load", () => resolve(window.L));
+            script.addEventListener("error", () => reject(new Error("Não consegui carregar o mapa.")));
+            return;
+        }
+        script = document.createElement("script");
+        script.id = "leaflet-js";
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
+        script.onload = () => resolve(window.L);
+        script.onerror = () => reject(new Error("Não consegui carregar o mapa."));
+        document.body.appendChild(script);
+    });
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function geocodeAddress(address) {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+    const res = await fetch(url, { headers: { "Accept-Language": "pt-BR" } });
+    if (!res.ok)
+        throw new Error("Serviço de endereços indisponível agora. Tenta de novo em instantes.");
+    const data = await res.json();
+    if (!data || data.length === 0)
+        throw new Error(`Não encontrei esse endereço: ${address}`);
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+}
+async function fetchOSRMRoute(points) {
+    const coordStr = points.map((p) => `${p.lng},${p.lat}`).join(";");
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if (!res.ok)
+        throw new Error("Serviço de rotas indisponível agora. Tenta de novo em instantes.");
+    const data = await res.json();
+    if (!data.routes || data.routes.length === 0)
+        throw new Error("Não encontrei uma rota entre os pontos.");
+    return data.routes[0];
+}
+function haversineKm(a, b) {
+    const R = 6371;
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+    const s = Math.sin(dLat / 2) ** 2 +
+        Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+}
+function nearestNeighborOrder(origin, stops) {
+    const remaining = stops.map((s, i) => ({ ...s, _i: i }));
+    const ordered = [];
+    let current = origin;
+    while (remaining.length > 0) {
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        remaining.forEach((s, idx) => {
+            const d = haversineKm(current, s);
+            if (d < bestDist) {
+                bestDist = d;
+                bestIdx = idx;
+            }
+        });
+        const next = remaining.splice(bestIdx, 1)[0];
+        ordered.push(next._i);
+        current = next;
+    }
+    return ordered;
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function onlyDigits(str) {
+    return (str || "").replace(/\D/g, "");
+}
+function getGreeting() {
+    const hour = new Date().getHours();
+    if (hour < 12)
+        return "Bom dia";
+    if (hour < 18)
+        return "Boa tarde";
+    return "Boa noite";
+}
+function whatsappLink(phone, message) {
+    let digits = onlyDigits(phone);
+    if (digits.length <= 11)
+        digits = "55" + digits;
+    return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
+function brl(n) {
+    return (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function orderTotal(order) {
+    return Number(order.deliveryFee) || 0;
+}
+function formatDateTime(ts) {
+    if (!ts)
+        return "";
+    const d = new Date(ts);
+    return `${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+function dayKey(ts) {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+}
+function dayLabel(ts) {
+    const d = new Date(ts);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thatDay = new Date(ts);
+    thatDay.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((today.getTime() - thatDay.getTime()) / 86400000);
+    if (diffDays === 0)
+        return "Hoje";
+    if (diffDays === 1)
+        return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+function RotaEntregas() {
+    const [tab, setTab] = useState("rota");
+    const [clients, setClients] = useState([]);
+    const [orders, setOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [gps, setGps] = useState(null);
+    const [gpsLoading, setGpsLoading] = useState(false);
+    const [gpsError, setGpsError] = useState("");
+    const fetchGps = useCallback(() => {
+        if (!navigator.geolocation) {
+            setGpsError("Esse navegador não dá acesso a localização.");
+            return;
+        }
+        setGpsLoading(true);
+        setGpsError("");
+        navigator.geolocation.getCurrentPosition((pos) => {
+            setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setGpsLoading(false);
+        }, () => {
+            setGpsError("Não consegui pegar sua localização. Verifica a permissão de GPS.");
+            setGpsLoading(false);
+        }, { enableHighAccuracy: true, timeout: 10000 });
+    }, []);
+    useEffect(() => {
+        loadFonts();
+    }, []);
+    useEffect(() => {
+        (async () => {
+            try {
+                const c = await window.storage.get("clients");
+                setClients(c ? JSON.parse(c.value) : []);
+            }
+            catch (_a) {
+                setClients([]);
+            }
+            try {
+                const o = await window.storage.get("orders");
+                setOrders(o ? JSON.parse(o.value) : []);
+            }
+            catch (_b) {
+                setOrders([]);
+            }
+            setLoading(false);
+        })();
+    }, []);
+    const persistClients = useCallback(async (next) => {
+        setClients(next);
+        try {
+            await window.storage.set("clients", JSON.stringify(next));
+        }
+        catch (_a) {
+            setError("Não consegui salvar. Tenta de novo.");
+        }
+    }, []);
+    const persistOrders = useCallback(async (next) => {
+        setOrders(next);
+        try {
+            await window.storage.set("orders", JSON.stringify(next));
+        }
+        catch (_a) {
+            setError("Não consegui salvar. Tenta de novo.");
+        }
+    }, []);
+    if (loading) {
+        return (React.createElement("div", { style: { minHeight: "100vh", background: "#13161D", display: "flex", alignItems: "center", justifyContent: "center" } },
+            React.createElement(Loader2, { size: 28, color: "#D97B29", className: "animate-spin" })));
+    }
+    return (React.createElement("div", { style: {
+            minHeight: "100vh",
+            background: "#13161D",
+            color: "#F2F4F7",
+            fontFamily: FONT_BODY,
+            display: "flex",
+            flexDirection: "column",
+        } },
+        React.createElement("style", null, `
+        * { box-sizing: border-box; }
+        ::placeholder { color: #5C6377; }
+        button { font-family: ${FONT_BODY}; cursor: pointer; color: inherit; }
+        button:disabled { cursor: not-allowed; opacity: 0.6; }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        input, textarea, select { font-family: ${FONT_BODY}; }
+        .leaflet-container { background: #13161D; font-family: ${FONT_BODY}; }
+        @media (prefers-reduced-motion: reduce) { .animate-spin { animation: none; } }
+      `),
+        React.createElement(Header, null),
+        React.createElement("main", { style: { flex: 1, padding: "16px", paddingBottom: "90px", maxWidth: 480, margin: "0 auto", width: "100%" } },
+            error && (React.createElement("div", { style: { background: "#3A1F1F", color: "#FF9B9B", padding: "10px 14px", borderRadius: 10, marginBottom: 14, fontSize: 14 } }, error)),
+            tab === "clientes" && React.createElement(ClientesTab, { clients: clients, persistClients: persistClients, orders: orders }),
+            tab === "pedidos" && (React.createElement(PedidosTab, { clients: clients, orders: orders, persistOrders: persistOrders })),
+            tab === "rota" && (React.createElement(RotaTab, { clients: clients, orders: orders, persistOrders: persistOrders, persistClients: persistClients, gps: gps, gpsLoading: gpsLoading, gpsError: gpsError, fetchGps: fetchGps })),
+            tab === "mapa" && (React.createElement(MapaTab, { clients: clients, orders: orders, persistClients: persistClients, gps: gps, gpsLoading: gpsLoading, gpsError: gpsError, fetchGps: fetchGps })),
+            tab === "historico" && (React.createElement(HistoricoTab, { clients: clients, orders: orders, persistClients: persistClients, persistOrders: persistOrders }))),
+        React.createElement(BottomNav, { tab: tab, setTab: setTab, pendingCount: orders.filter((o) => o.status === "pendente").length })));
+}
+function Header() {
+    return (React.createElement("div", { style: {
+            padding: "20px 16px 14px",
+            borderBottom: "1px solid #1F2430",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            maxWidth: 480,
+            margin: "0 auto",
+            width: "100%",
+        } },
+        React.createElement("div", { style: {
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: "linear-gradient(135deg, #C17A3D, #7A4A24)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                fontSize: 20,
+                border: "1px solid #4C7A3D",
+            } }, "\uD83D\uDC3F\uFE0F"),
+        React.createElement("div", null,
+            React.createElement("div", { style: { fontFamily: FONT_DISPLAY, fontSize: 22, fontWeight: 800, lineHeight: 1, letterSpacing: 0.3 } }, "ROTA DE ENTREGAS"),
+            React.createElement("div", { style: { fontSize: 12, color: "#8B93A7", marginTop: 2 } }, "Seu esquilo entregador \uD83C\uDF30"))));
+}
+function BottomNav({ tab, setTab, pendingCount }) {
+    const items = [
+        { id: "rota", label: "Rota", icon: Navigation, badge: pendingCount },
+        { id: "mapa", label: "Mapa", icon: Route },
+        { id: "pedidos", label: "Pedidos", icon: Package },
+        { id: "clientes", label: "Clientes", icon: MapPin },
+        { id: "historico", label: "Histórico", icon: Wallet },
+    ];
+    return (React.createElement("nav", { style: {
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: "#181C26",
+            borderTop: "1px solid #262B38",
+            display: "flex",
+            maxWidth: 480,
+            margin: "0 auto",
+        } }, items.map((it) => {
+        const active = tab === it.id;
+        const Icon = it.icon;
+        return (React.createElement("button", { key: it.id, onClick: () => setTab(it.id), style: {
+                flex: 1,
+                background: "none",
+                border: "none",
+                padding: "9px 0 10px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 3,
+                position: "relative",
+                color: active ? "#D97B29" : "#6B7280",
+            } },
+            React.createElement(Icon, { size: 18, strokeWidth: active ? 2.5 : 2 }),
+            React.createElement("span", { style: { fontSize: 10, fontWeight: active ? 700 : 500 } }, it.label),
+            !!it.badge && (React.createElement("span", { style: {
+                    position: "absolute",
+                    top: 2,
+                    right: "22%",
+                    background: "#D97B29",
+                    color: "#13161D",
+                    fontSize: 9,
+                    fontWeight: 800,
+                    borderRadius: 10,
+                    minWidth: 14,
+                    height: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 3px",
+                } }, it.badge))));
+    })));
+}
+/* ---------------- CONFIRM MODAL ---------------- */
+function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel = "Sim, excluir", confirmColor = "#E5484D" }) {
+    return (React.createElement("div", { style: {
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: 20,
+        }, onClick: onCancel },
+        React.createElement("div", { style: { ...cardStyle, maxWidth: 340, width: "100%", marginBottom: 0 }, onClick: (e) => e.stopPropagation() },
+            React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-start" } },
+                React.createElement(AlertTriangle, { size: 20, color: "#D97B29", style: { flexShrink: 0, marginTop: 2 } }),
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 15.5 } }, title),
+                    React.createElement("div", { style: { color: "#8B93A7", fontSize: 13.5, marginTop: 4 } }, message))),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 16 } },
+                React.createElement("button", { onClick: onConfirm, style: { ...primaryBtnStyle, flex: 1, justifyContent: "center", background: confirmColor } }, confirmLabel),
+                React.createElement("button", { onClick: onCancel, style: { ...ghostBtnStyle, flex: 1, justifyContent: "center" } }, "N\u00E3o")))));
+}
+/* ---------------- CLIENT COMBOBOX ---------------- */
+function ClientCombobox({ clients, value, onChange, excludeIds }) {
+    const selected = clients.find((c) => c.id === value);
+    const [query, setQuery] = useState(selected ? selected.name : "");
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+        const s = clients.find((c) => c.id === value);
+        setQuery(s ? s.name : "");
+    }, [value]);
+    const filtered = clients.filter((c) => !excludeIds.includes(c.id) && c.name.toLowerCase().includes(query.trim().toLowerCase()));
+    return (React.createElement("div", { style: { position: "relative", marginBottom: 12 } },
+        React.createElement("label", { style: labelStyle }, "Cliente"),
+        React.createElement("div", { style: { position: "relative" } },
+            React.createElement(Search, { size: 15, color: "#5C6377", style: { position: "absolute", left: 11, top: 12 } }),
+            React.createElement("input", { value: query, onChange: (e) => {
+                    setQuery(e.target.value);
+                    setOpen(true);
+                    onChange("");
+                }, onFocus: () => setOpen(true), placeholder: "Digite o nome do cliente", style: { ...inputStyle, paddingLeft: 32 } })),
+        open && (React.createElement("div", { style: {
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                background: "#1F2430",
+                border: "1px solid #2C3140",
+                borderRadius: 10,
+                marginTop: 4,
+                maxHeight: 200,
+                overflowY: "auto",
+                zIndex: 10,
+            } },
+            filtered.length === 0 && (React.createElement("div", { style: { padding: "10px 12px", fontSize: 13, color: "#6B7280" } }, "Nenhum cliente dispon\u00EDvel com esse nome.")),
+            filtered.map((c) => (React.createElement("div", { key: c.id, onClick: () => {
+                    onChange(c.id);
+                    setQuery(c.name);
+                    setOpen(false);
+                }, style: { padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #262B38", cursor: "pointer" } }, c.name)))))));
+}
+/* ---------------- CLIENTES ---------------- */
+function ClientesTab({ clients, persistClients, orders }) {
+    const [form, setForm] = useState(null);
+    const [confirmDelete, setConfirmDelete] = useState(null);
+    const startNew = () => setForm({ id: null, name: "", phone: "", address: "", deliveryFee: "" });
+    const save = () => {
+        if (!form.name.trim() || !form.address.trim())
+            return;
+        const clean = { ...form, deliveryFee: Number(form.deliveryFee) || 0 };
+        if (form.id) {
+            const prev = clients.find((c) => c.id === form.id);
+            if (prev && prev.address === form.address) {
+                clean.lat = prev.lat;
+                clean.lng = prev.lng;
+            }
+            else {
+                delete clean.lat;
+                delete clean.lng;
+            }
+            persistClients(clients.map((c) => (c.id === form.id ? clean : c)));
+        }
+        else {
+            persistClients([...clients, { ...clean, id: uid() }]);
+        }
+        setForm(null);
+    };
+    const remove = (id) => {
+        persistClients(clients.filter((c) => c.id !== id));
+        setConfirmDelete(null);
+    };
+    return (React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
+            React.createElement(SectionTitle, null,
+                "Clientes (",
+                clients.length,
+                ")"),
+            React.createElement("button", { onClick: startNew, style: addBtnStyle },
+                React.createElement(Plus, { size: 16 }),
+                " Novo")),
+        form && (React.createElement("div", { style: cardStyle },
+            React.createElement(Field, { label: "Nome", value: form.name, onChange: (v) => setForm({ ...form, name: v }), placeholder: "Ex: Jo\u00E3o Silva" }),
+            React.createElement(Field, { label: "WhatsApp", value: form.phone, onChange: (v) => setForm({ ...form, phone: v }), placeholder: "Ex: 11999998888" }),
+            React.createElement(Field, { label: "Endere\u00E7o completo", value: form.address, onChange: (v) => setForm({ ...form, address: v }), placeholder: "Rua, n\u00FAmero, bairro, cidade", textarea: true }),
+            React.createElement(Field, { label: "Valor padr\u00E3o da entrega (R$)", value: form.deliveryFee, onChange: (v) => setForm({ ...form, deliveryFee: v }), placeholder: "Ex: 8", type: "number" }),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                React.createElement("button", { onClick: save, style: primaryBtnStyle },
+                    React.createElement(Check, { size: 16 }),
+                    " Salvar"),
+                React.createElement("button", { onClick: () => setForm(null), style: ghostBtnStyle },
+                    React.createElement(X, { size: 16 }),
+                    " Cancelar")))),
+        clients.length === 0 && !form && (React.createElement(EmptyState, { text: "Nenhum cliente cadastrado ainda. Toque em \u201CNovo\u201D pra come\u00E7ar." })),
+        clients.map((c) => {
+            const orderCount = orders.filter((o) => o.clientId === c.id && o.status === "pendente").length;
+            return (React.createElement("div", { key: c.id, style: cardStyle },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                    React.createElement("div", { style: { flex: 1 } },
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 16 } }, c.name),
+                        React.createElement("div", { style: { color: "#8B93A7", fontSize: 13, marginTop: 3, display: "flex", gap: 5, alignItems: "flex-start" } },
+                            React.createElement(MapPin, { size: 13, style: { marginTop: 2, flexShrink: 0 } }),
+                            " ",
+                            c.address),
+                        c.phone && (React.createElement("div", { style: { color: "#8B93A7", fontSize: 13, marginTop: 3, display: "flex", gap: 5, alignItems: "center" } },
+                            React.createElement(Phone, { size: 13 }),
+                            " ",
+                            c.phone)),
+                        !!c.deliveryFee && (React.createElement("div", { style: { color: "#8B93A7", fontSize: 13, marginTop: 3, display: "flex", gap: 5, alignItems: "center" } },
+                            React.createElement(Wallet, { size: 13 }),
+                            " Entrega padr\u00E3o: ",
+                            brl(c.deliveryFee))),
+                        orderCount > 0 && (React.createElement("div", { style: { marginTop: 6, fontSize: 11, color: "#D97B29", fontWeight: 700 } },
+                            orderCount,
+                            " pedido(s) pendente(s)"))),
+                    React.createElement("div", { style: { display: "flex", gap: 6 } },
+                        React.createElement("button", { onClick: () => setForm(c), style: iconBtnStyle }, "\u270E"),
+                        React.createElement("button", { onClick: () => setConfirmDelete(c.id), style: iconBtnStyle },
+                            React.createElement(Trash2, { size: 15, color: "#FF6B6B" }))))));
+        }),
+        confirmDelete && (React.createElement(ConfirmModal, { title: "Excluir cliente?", message: "Isso remove o cadastro do cliente. Os pedidos j\u00E1 feitos continuam no hist\u00F3rico.", onConfirm: () => remove(confirmDelete), onCancel: () => setConfirmDelete(null) }))));
+}
+/* ---------------- PEDIDOS ---------------- */
+function emptyOrderForm(existing) {
+    var _a;
+    if (existing) {
+        return {
+            id: existing.id,
+            clientId: existing.clientId,
+            deliveryFee: (_a = existing.deliveryFee) !== null && _a !== void 0 ? _a : 0,
+            notes: existing.notes || "",
+            status: existing.status,
+            createdAt: existing.createdAt,
+            deliveredAt: existing.deliveredAt,
+        };
+    }
+    return { id: null, clientId: "", deliveryFee: "", notes: "", status: "pendente" };
+}
+function PedidosTab({ clients, orders, persistOrders }) {
+    const [form, setForm] = useState(null);
+    const [formError, setFormError] = useState("");
+    const [confirmDelete, setConfirmDelete] = useState(null);
+    const [entreguesOpen, setEntreguesOpen] = useState(false);
+    const startNew = () => {
+        if (clients.length === 0)
+            return;
+        setForm(emptyOrderForm(null));
+        setFormError("");
+    };
+    const onClientChange = (clientId) => {
+        var _a;
+        const client = clients.find((c) => c.id === clientId);
+        setForm({ ...form, clientId, deliveryFee: form.id ? form.deliveryFee : ((_a = client === null || client === void 0 ? void 0 : client.deliveryFee) !== null && _a !== void 0 ? _a : form.deliveryFee) });
+        setFormError("");
+    };
+    const save = () => {
+        if (!form.clientId) {
+            setFormError("Escolha um cliente da lista.");
+            return;
+        }
+        const conflict = orders.some((o) => o.clientId === form.clientId && o.status === "pendente" && o.id !== form.id);
+        if (conflict) {
+            setFormError("Esse cliente já tem um pedido pendente. Finalize ou exclua o anterior antes de criar outro.");
+            return;
+        }
+        if (form.id) {
+            persistOrders(orders.map((o) => (o.id === form.id ? { ...o, ...form, deliveryFee: Number(form.deliveryFee) || 0 } : o)));
+        }
+        else {
+            persistOrders([...orders, { ...form, deliveryFee: Number(form.deliveryFee) || 0, id: uid(), createdAt: Date.now() }]);
+        }
+        setForm(null);
+        setFormError("");
+    };
+    const remove = (id) => {
+        persistOrders(orders.filter((o) => o.id !== id));
+        setConfirmDelete(null);
+    };
+    const toggleStatus = (o) => {
+        persistOrders(orders.map((x) => {
+            if (x.id !== o.id)
+                return x;
+            const delivering = x.status === "pendente";
+            return { ...x, status: delivering ? "entregue" : "pendente", deliveredAt: delivering ? Date.now() : undefined };
+        }));
+    };
+    const pending = orders.filter((o) => o.status === "pendente").sort((a, b) => b.createdAt - a.createdAt);
+    const delivered = orders.filter((o) => o.status === "entregue").sort((a, b) => (b.deliveredAt || 0) - (a.deliveredAt || 0));
+    const rotaTotal = pending.reduce((s, o) => s + orderTotal(o), 0);
+    const excludeIds = form
+        ? orders.filter((o) => o.status === "pendente" && o.id !== form.id).map((o) => o.clientId)
+        : [];
+    return (React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
+            React.createElement(SectionTitle, null,
+                "Pedidos (",
+                orders.length,
+                ")"),
+            React.createElement("button", { onClick: startNew, style: addBtnStyle, disabled: clients.length === 0 },
+                React.createElement(Plus, { size: 16 }),
+                " Novo")),
+        clients.length === 0 && React.createElement(EmptyState, { text: "Cadastre um cliente primeiro, na aba Clientes." }),
+        pending.length > 0 && (React.createElement("div", { style: { ...cardStyle, background: "#26190F", border: "1px solid #4A2E18", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+            React.createElement("div", null,
+                React.createElement("div", { style: { fontSize: 11, color: "#8B93A7", fontWeight: 700, textTransform: "uppercase" } }, "Total previsto da rota"),
+                React.createElement("div", { style: { fontSize: 12, color: "#8B93A7", marginTop: 2 } },
+                    pending.length,
+                    " entrega(s) pendente(s)")),
+            React.createElement("div", { style: { fontFamily: FONT_DISPLAY, fontSize: 22, fontWeight: 800, color: "#D97B29" } }, brl(rotaTotal)))),
+        form && (React.createElement("div", { style: cardStyle },
+            React.createElement(ClientCombobox, { clients: clients, value: form.clientId, onChange: onClientChange, excludeIds: excludeIds }),
+            React.createElement(Field, { label: "Valor da entrega (R$)", value: form.deliveryFee, onChange: (v) => setForm({ ...form, deliveryFee: v }), type: "number" }),
+            React.createElement(Field, { label: "Observa\u00E7\u00F5es (opcional)", value: form.notes, onChange: (v) => setForm({ ...form, notes: v }), placeholder: "Ex: pagamento na entrega", textarea: true }),
+            formError && React.createElement("div", { style: { color: "#FF9B9B", fontSize: 12.5, marginTop: 2, marginBottom: 4 } }, formError),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                React.createElement("button", { onClick: save, style: primaryBtnStyle },
+                    React.createElement(Check, { size: 16 }),
+                    " Salvar"),
+                React.createElement("button", { onClick: () => { setForm(null); setFormError(""); }, style: ghostBtnStyle },
+                    React.createElement(X, { size: 16 }),
+                    " Cancelar")))),
+        orders.length === 0 && !form && React.createElement(EmptyState, { text: "Nenhum pedido registrado ainda." }),
+        pending.map((o) => {
+            const client = clients.find((c) => c.id === o.clientId);
+            return (React.createElement("div", { key: o.id, style: cardStyle },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                    React.createElement("div", { style: { flex: 1 } },
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 16.5 } }, client ? client.name : "Cliente removido"),
+                        o.notes && React.createElement("div", { style: { color: "#9AA2B5", fontSize: 13.5, marginTop: 2 } }, o.notes),
+                        React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", marginTop: 6, flexWrap: "wrap" } },
+                            React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#D97B29" } }, "PENDENTE"),
+                            React.createElement("span", { style: { fontSize: 13, color: "#9AA2B5" } }, formatDateTime(o.createdAt)),
+                            React.createElement("span", { style: { fontSize: 14, fontWeight: 700, color: "#F2F4F7" } }, brl(orderTotal(o))))),
+                    React.createElement("div", { style: { display: "flex", gap: 6 } },
+                        React.createElement("button", { onClick: () => toggleStatus(o), style: iconBtnStyle },
+                            React.createElement(Check, { size: 15, color: "#34D399" })),
+                        React.createElement("button", { onClick: () => { setForm(emptyOrderForm(o)); setFormError(""); }, style: iconBtnStyle }, "\u270E"),
+                        React.createElement("button", { onClick: () => setConfirmDelete(o.id), style: iconBtnStyle },
+                            React.createElement(Trash2, { size: 15, color: "#FF6B6B" }))))));
+        }),
+        delivered.length > 0 && (React.createElement("div", { style: { marginTop: 16 } },
+            React.createElement("button", { onClick: () => setEntreguesOpen(!entreguesOpen), style: {
+                    ...cardStyle,
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    background: "#161A24",
+                } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement(Check, { size: 16, color: "#34D399" }),
+                    React.createElement("span", { style: { fontWeight: 700, fontSize: 15.5, color: "#F2F4F7" } },
+                        "Entregues (",
+                        delivered.length,
+                        ")")),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement("span", { style: { fontWeight: 700, fontSize: 15.5, color: "#34D399" } }, brl(delivered.reduce((s, o) => s + orderTotal(o), 0))),
+                    entreguesOpen ? React.createElement(ChevronUp, { size: 16, color: "#F2F4F7" }) : React.createElement(ChevronDown, { size: 16, color: "#F2F4F7" }))),
+            entreguesOpen &&
+                delivered.map((o) => {
+                    const client = clients.find((c) => c.id === o.clientId);
+                    return (React.createElement("div", { key: o.id, style: { ...cardStyle, opacity: 0.6 } },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                            React.createElement("div", { style: { flex: 1 } },
+                                React.createElement("div", { style: { fontWeight: 700, fontSize: 16.5 } }, client ? client.name : "Cliente removido"),
+                                o.notes && React.createElement("div", { style: { color: "#9AA2B5", fontSize: 13.5, marginTop: 2 } }, o.notes),
+                                React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", marginTop: 6, flexWrap: "wrap" } },
+                                    React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#34D399" } }, "ENTREGUE"),
+                                    React.createElement("span", { style: { fontSize: 13, color: "#9AA2B5" } }, formatDateTime(o.deliveredAt)),
+                                    React.createElement("span", { style: { fontSize: 14, fontWeight: 700, color: "#F2F4F7" } }, brl(orderTotal(o))))),
+                            React.createElement("div", { style: { display: "flex", gap: 6 } },
+                                React.createElement("button", { onClick: () => toggleStatus(o), style: iconBtnStyle },
+                                    React.createElement(Check, { size: 15, color: "#8B93A7" })),
+                                React.createElement("button", { onClick: () => setConfirmDelete(o.id), style: iconBtnStyle },
+                                    React.createElement(Trash2, { size: 15, color: "#FF6B6B" }))))));
+                }))),
+        confirmDelete && (React.createElement(ConfirmModal, { title: "Excluir pedido?", message: "Essa a\u00E7\u00E3o n\u00E3o pode ser desfeita.", onConfirm: () => remove(confirmDelete), onCancel: () => setConfirmDelete(null) }))));
+}
+/* ---------------- ROTA ---------------- */
+function RotaTab({ clients, orders, persistOrders, persistClients, gps, gpsLoading, gpsError, fetchGps }) {
+    const [optimizing, setOptimizing] = useState(false);
+    const [optError, setOptError] = useState("");
+    const pending = orders
+        .filter((o) => o.status === "pendente")
+        .sort((a, b) => { var _a, _b; return ((_a = a.routeOrder) !== null && _a !== void 0 ? _a : a.createdAt) - ((_b = b.routeOrder) !== null && _b !== void 0 ? _b : b.createdAt); });
+    const move = (orderId, dir) => {
+        var _a, _b;
+        const idx = pending.findIndex((o) => o.id === orderId);
+        const swapWith = idx + dir;
+        if (swapWith < 0 || swapWith >= pending.length)
+            return;
+        const a = pending[idx];
+        const b = pending[swapWith];
+        const aOrder = (_a = a.routeOrder) !== null && _a !== void 0 ? _a : a.createdAt;
+        const bOrder = (_b = b.routeOrder) !== null && _b !== void 0 ? _b : b.createdAt;
+        persistOrders(orders.map((o) => {
+            if (o.id === a.id)
+                return { ...o, routeOrder: bOrder };
+            if (o.id === b.id)
+                return { ...o, routeOrder: aOrder };
+            return o;
+        }));
+    };
+    const optimizeRoute = async () => {
+        setOptimizing(true);
+        setOptError("");
+        try {
+            let currentGps = gps;
+            if (!currentGps) {
+                currentGps = await new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error("Esse navegador não dá acesso a localização."));
+                        return;
+                    }
+                    navigator.geolocation.getCurrentPosition((pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }), () => reject(new Error("Não consegui pegar sua localização. Verifica a permissão de GPS.")), { enableHighAccuracy: true, timeout: 10000 });
+                });
+            }
+            if (pending.length === 0)
+                throw new Error("Nenhuma entrega pendente pra otimizar.");
+            const clientUpdates = {};
+            const withCoords = [];
+            for (const o of pending) {
+                const client = clients.find((c) => c.id === o.clientId);
+                if (!client)
+                    continue;
+                let { lat, lng } = client;
+                if (lat == null || lng == null) {
+                    const geo = await geocodeAddress(client.address);
+                    lat = geo.lat;
+                    lng = geo.lng;
+                    clientUpdates[client.id] = { lat, lng };
+                    await sleep(1000);
+                }
+                withCoords.push({ order: o, lat, lng });
+            }
+            if (Object.keys(clientUpdates).length > 0) {
+                persistClients(clients.map((c) => (clientUpdates[c.id] ? { ...c, ...clientUpdates[c.id] } : c)));
+            }
+            const seq = nearestNeighborOrder(currentGps, withCoords.map((w) => ({ lat: w.lat, lng: w.lng })));
+            const now = Date.now();
+            const newRouteOrders = {};
+            seq.forEach((originalIdx, position) => {
+                newRouteOrders[withCoords[originalIdx].order.id] = now + position;
+            });
+            persistOrders(orders.map((o) => (newRouteOrders[o.id] !== undefined ? { ...o, routeOrder: newRouteOrders[o.id] } : o)));
+        }
+        catch (err) {
+            setOptError(err.message || "Não consegui otimizar a rota agora.");
+        }
+        finally {
+            setOptimizing(false);
+        }
+    };
+    const openRoute = () => {
+        if (pending.length === 0)
+            return;
+        const addresses = pending
+            .map((o) => { var _a; return (_a = clients.find((c) => c.id === o.clientId)) === null || _a === void 0 ? void 0 : _a.address; })
+            .filter(Boolean);
+        if (addresses.length === 0)
+            return;
+        const destination = encodeURIComponent(addresses[addresses.length - 1]);
+        const waypoints = addresses
+            .slice(0, -1)
+            .map((a) => encodeURIComponent(a))
+            .join("|");
+        const origin = gps ? `${gps.lat},${gps.lng}` : "";
+        let url = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+        if (origin)
+            url += `&origin=${origin}`;
+        if (waypoints)
+            url += `&waypoints=${waypoints}`;
+        window.open(url, "_blank");
+    };
+    return (React.createElement("div", null,
+        React.createElement(SectionTitle, null,
+            "Rota de hoje (",
+            pending.length,
+            " parada",
+            pending.length === 1 ? "" : "s",
+            ")"),
+        React.createElement("div", { style: { ...cardStyle, marginTop: 12 } },
+            React.createElement("button", { onClick: fetchGps, style: { ...primaryBtnStyle, width: "100%", justifyContent: "center" } },
+                gpsLoading ? React.createElement(Loader2, { size: 16, className: "animate-spin" }) : React.createElement(Navigation, { size: 16 }),
+                gps ? "Atualizar minha localização" : "Usar minha localização (GPS)"),
+            gpsError && React.createElement("div", { style: { color: "#FF9B9B", fontSize: 12, marginTop: 8 } }, gpsError),
+            gps && React.createElement("div", { style: { color: "#8B93A7", fontSize: 12, marginTop: 8 } }, "Localiza\u00E7\u00E3o atual capturada \u2713")),
+        pending.length > 0 && (React.createElement("div", { style: { ...cardStyle } },
+            React.createElement("button", { onClick: optimizeRoute, disabled: optimizing, style: { ...primaryBtnStyle, width: "100%", justifyContent: "center", background: "#2DD4FF", color: "#0B1220" } },
+                optimizing ? React.createElement(Loader2, { size: 16, className: "animate-spin" }) : React.createElement(Wand2, { size: 16 }),
+                "Otimizar rota automaticamente"),
+            React.createElement("div", { style: { color: "#6B7280", fontSize: 11.5, marginTop: 8 } }, "Calcula a sequ\u00EAncia mais r\u00E1pida com base na dist\u00E2ncia de cada endere\u00E7o at\u00E9 voc\u00EA. Pode levar alguns segundos."),
+            optError && React.createElement("div", { style: { color: "#FF9B9B", fontSize: 12, marginTop: 8 } }, optError))),
+        pending.length === 0 ? (React.createElement(EmptyState, { text: "Nenhuma entrega pendente. Registre pedidos na aba Pedidos." })) : (React.createElement(React.Fragment, null,
+            React.createElement("div", { style: { fontSize: 12, color: "#8B93A7", margin: "14px 0 8px" } }, "Ajuste fino manual com as setas, se precisar."),
+            pending.map((o, i) => {
+                const client = clients.find((c) => c.id === o.clientId);
+                return (React.createElement("div", { key: o.id, style: cardStyle },
+                    React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "flex-start" } },
+                        React.createElement("div", { style: {
+                                width: 26,
+                                height: 26,
+                                borderRadius: 7,
+                                background: "#D97B29",
+                                color: "#13161D",
+                                fontFamily: FONT_DISPLAY,
+                                fontWeight: 800,
+                                fontSize: 14,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                            } }, i + 1),
+                        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, client ? client.name : "Cliente removido"),
+                            client && (React.createElement("div", { style: { color: "#8B93A7", fontSize: 12.5, marginTop: 2 } }, client.address)),
+                            React.createElement("div", { style: { fontSize: 12.5, fontWeight: 700, color: "#F2F4F7", marginTop: 4 } }, brl(orderTotal(o))),
+                            (client === null || client === void 0 ? void 0 : client.phone) && (React.createElement("a", { href: whatsappLink(client.phone, `${getGreeting()}! Estou com seu pedido, assim que estiver a caminho aviso.`), target: "_blank", rel: "noreferrer", style: {
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    marginTop: 8,
+                                    fontSize: 12.5,
+                                    fontWeight: 700,
+                                    color: "#25D366",
+                                    textDecoration: "none",
+                                } },
+                                React.createElement(Phone, { size: 13 }),
+                                " Avisar no WhatsApp"))),
+                        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4 } },
+                            React.createElement("button", { onClick: () => move(o.id, -1), disabled: i === 0, style: iconBtnStyle },
+                                React.createElement(ChevronUp, { size: 15, style: { opacity: i === 0 ? 0.3 : 1 } })),
+                            React.createElement("button", { onClick: () => move(o.id, 1), disabled: i === pending.length - 1, style: iconBtnStyle },
+                                React.createElement(ChevronDown, { size: 15, style: { opacity: i === pending.length - 1 ? 0.3 : 1 } }))))));
+            }),
+            React.createElement("button", { onClick: openRoute, style: { ...primaryBtnStyle, width: "100%", justifyContent: "center", marginTop: 8, padding: "14px" } },
+                React.createElement(Navigation, { size: 17 }),
+                " Abrir rota completa no Google Maps")))));
+}
+/* ---------------- MAPA ---------------- */
+function MapaTab({ clients, orders, persistClients, gps, gpsLoading, gpsError, fetchGps }) {
+    const mapDivRef = useRef(null);
+    const mapInstanceRef = useRef(null);
+    const layerGroupRef = useRef(null);
+    const [status, setStatus] = useState("idle");
+    const [errorMsg, setErrorMsg] = useState("");
+    const [summary, setSummary] = useState(null);
+    const [stops, setStops] = useState([]);
+    const [routeLatLngs, setRouteLatLngs] = useState([]);
+    const [originPoint, setOriginPoint] = useState(null);
+    const pending = orders
+        .filter((o) => o.status === "pendente")
+        .sort((a, b) => { var _a, _b; return ((_a = a.routeOrder) !== null && _a !== void 0 ? _a : a.createdAt) - ((_b = b.routeOrder) !== null && _b !== void 0 ? _b : b.createdAt); });
+    const buildRoute = async () => {
+        setStatus("loading");
+        setErrorMsg("");
+        try {
+            let currentGps = gps;
+            if (!currentGps) {
+                currentGps = await new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error("Esse navegador não dá acesso a localização."));
+                        return;
+                    }
+                    navigator.geolocation.getCurrentPosition((pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }), () => reject(new Error("Não consegui pegar sua localização. Verifica a permissão de GPS.")), { enableHighAccuracy: true, timeout: 10000 });
+                });
+            }
+            if (pending.length === 0)
+                throw new Error("Nenhuma entrega pendente pra mostrar no mapa.");
+            const clientUpdates = {};
+            const orderedClients = [];
+            for (const o of pending) {
+                const client = clients.find((c) => c.id === o.clientId);
+                if (!client)
+                    continue;
+                let { lat, lng } = client;
+                if (lat == null || lng == null) {
+                    const geo = await geocodeAddress(client.address);
+                    lat = geo.lat;
+                    lng = geo.lng;
+                    clientUpdates[client.id] = { lat, lng };
+                    await sleep(1000);
+                }
+                orderedClients.push({ ...client, lat, lng });
+            }
+            if (Object.keys(clientUpdates).length > 0) {
+                const next = clients.map((c) => (clientUpdates[c.id] ? { ...c, ...clientUpdates[c.id] } : c));
+                persistClients(next);
+            }
+            const points = [{ lat: currentGps.lat, lng: currentGps.lng }, ...orderedClients.map((c) => ({ lat: c.lat, lng: c.lng }))];
+            const route = await fetchOSRMRoute(points);
+            const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+            setOriginPoint(currentGps);
+            setRouteLatLngs(latlngs);
+            setStops(orderedClients);
+            setSummary({ distanceKm: (route.distance / 1000).toFixed(1), durationMin: Math.round(route.duration / 60) });
+            setStatus("ready");
+        }
+        catch (err) {
+            setErrorMsg(err.message || "Não consegui montar o mapa.");
+            setStatus("error");
+        }
+    };
+    useEffect(() => {
+        if (status !== "ready" || !mapDivRef.current)
+            return;
+        let cancelled = false;
+        loadLeaflet()
+            .then((L) => {
+            if (cancelled)
+                return;
+            if (!mapInstanceRef.current) {
+                mapInstanceRef.current = L.map(mapDivRef.current);
+                L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+                    attribution: "© OpenStreetMap, © CARTO",
+                    maxZoom: 19,
+                }).addTo(mapInstanceRef.current);
+            }
+            const map = mapInstanceRef.current;
+            if (layerGroupRef.current) {
+                layerGroupRef.current.clearLayers();
+            }
+            else {
+                layerGroupRef.current = L.layerGroup().addTo(map);
+            }
+            const group = layerGroupRef.current;
+            L.polyline(routeLatLngs, { color: "#D97B29", weight: 4, opacity: 0.9 }).addTo(group);
+            if (originPoint) {
+                const originIcon = L.divIcon({
+                    className: "",
+                    html: `<div style="width:16px;height:16px;border-radius:50%;background:#2DD4FF;border:3px solid #13161D;box-shadow:0 0 0 2px #2DD4FF55;"></div>`,
+                    iconSize: [16, 16],
+                });
+                L.marker([originPoint.lat, originPoint.lng], { icon: originIcon }).addTo(group);
+            }
+            stops.forEach((s, i) => {
+                const icon = L.divIcon({
+                    className: "",
+                    html: `<div style="width:24px;height:24px;border-radius:6px;background:#D97B29;color:#13161D;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;font-family:${FONT_DISPLAY};border:2px solid #13161D;">${i + 1}</div>`,
+                    iconSize: [24, 24],
+                });
+                L.marker([s.lat, s.lng], { icon }).addTo(group);
+            });
+            const bounds = L.latLngBounds(routeLatLngs);
+            map.fitBounds(bounds, { padding: [24, 24] });
+            setTimeout(() => map.invalidateSize(), 150);
+        })
+            .catch((err) => {
+            setErrorMsg(err.message);
+            setStatus("error");
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [status, routeLatLngs, stops, originPoint]);
+    useEffect(() => {
+        return () => {
+            if (mapInstanceRef.current) {
+                mapInstanceRef.current.remove();
+                mapInstanceRef.current = null;
+            }
+        };
+    }, []);
+    return (React.createElement("div", null,
+        React.createElement(SectionTitle, null, "Mapa da rota"),
+        React.createElement("div", { style: { ...cardStyle, marginTop: 12 } },
+            React.createElement("button", { onClick: buildRoute, style: { ...primaryBtnStyle, width: "100%", justifyContent: "center" }, disabled: status === "loading" },
+                status === "loading" ? React.createElement(Loader2, { size: 16, className: "animate-spin" }) : React.createElement(Route, { size: 16 }),
+                status === "ready" ? "Atualizar mapa" : "Traçar rota no mapa"),
+            React.createElement("div", { style: { color: "#6B7280", fontSize: 11.5, marginTop: 8 } }, "Usa OpenStreetMap e um servi\u00E7o gratuito de rotas \u2014 pode levar alguns segundos, principalmente na primeira vez."),
+            status === "error" && React.createElement("div", { style: { color: "#FF9B9B", fontSize: 12, marginTop: 8 } }, errorMsg),
+            gpsError && status !== "error" && React.createElement("div", { style: { color: "#FF9B9B", fontSize: 12, marginTop: 8 } }, gpsError)),
+        status === "ready" && summary && (React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } },
+            React.createElement(SummaryCard, { label: "Dist\u00E2ncia", value: `${summary.distanceKm} km` }),
+            React.createElement(SummaryCard, { label: "Tempo estimado", value: `${summary.durationMin} min`, highlight: true }))),
+        status === "ready" && (React.createElement("div", { ref: mapDivRef, style: { width: "100%", height: 360, borderRadius: 14, overflow: "hidden", border: "1px solid #262B38", marginBottom: 10 } })),
+        status === "ready" &&
+            stops.map((s, i) => (React.createElement("div", { key: s.id, style: { ...cardStyle, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" } },
+                React.createElement("div", { style: {
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        background: "#D97B29",
+                        color: "#13161D",
+                        fontFamily: FONT_DISPLAY,
+                        fontWeight: 800,
+                        fontSize: 12,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                    } }, i + 1),
+                React.createElement("div", { style: { fontSize: 13.5, fontWeight: 600 } }, s.name)))),
+        status === "idle" && React.createElement(EmptyState, { text: "Toque em \u201CTra\u00E7ar rota no mapa\u201D pra desenhar o caminho com base nas entregas pendentes." })));
+}
+/* ---------------- HISTORICO ---------------- */
+function HistoricoTab({ clients, orders, persistClients, persistOrders }) {
+    var _a, _b;
+    const fileInputRef = useRef(null);
+    const [restoreError, setRestoreError] = useState("");
+    const [pendingRestore, setPendingRestore] = useState(null);
+    const doBackup = () => {
+        const payload = { version: 1, exportedAt: new Date().toISOString(), clients, orders };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `rota-entregas-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+    const onFileSelected = (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file)
+            return;
+        setRestoreError("");
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const data = JSON.parse(reader.result);
+                if (!Array.isArray(data.clients) || !Array.isArray(data.orders)) {
+                    throw new Error("invalid");
+                }
+                setPendingRestore(data);
+            }
+            catch (_a) {
+                setRestoreError("Não consegui ler esse arquivo. Verifica se é um backup válido gerado pelo próprio app.");
+            }
+        };
+        reader.onerror = () => setRestoreError("Não consegui ler esse arquivo.");
+        reader.readAsText(file);
+        e.target.value = "";
+    };
+    const applyRestore = () => {
+        if (!pendingRestore)
+            return;
+        persistClients(pendingRestore.clients);
+        persistOrders(pendingRestore.orders);
+        setPendingRestore(null);
+    };
+    const delivered = orders.filter((o) => o.status === "entregue");
+    const now = Date.now();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const totalGeral = delivered.reduce((s, o) => s + orderTotal(o), 0);
+    const totalHoje = delivered.filter((o) => (o.deliveredAt || 0) >= startOfToday.getTime()).reduce((s, o) => s + orderTotal(o), 0);
+    const totalSemana = delivered.filter((o) => (o.deliveredAt || 0) >= sevenDaysAgo).reduce((s, o) => s + orderTotal(o), 0);
+    const groupsMap = {};
+    delivered.forEach((o) => {
+        const key = dayKey(o.deliveredAt || o.createdAt);
+        if (!groupsMap[key])
+            groupsMap[key] = { key, orders: [] };
+        groupsMap[key].orders.push(o);
+    });
+    const groups = Object.values(groupsMap).sort((a, b) => b.key - a.key);
+    const [openDay, setOpenDay] = useState((_b = (_a = groups[0]) === null || _a === void 0 ? void 0 : _a.key) !== null && _b !== void 0 ? _b : null);
+    return (React.createElement("div", null,
+        React.createElement(SectionTitle, null, "Hist\u00F3rico de ganhos"),
+        React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, marginBottom: 10 } },
+            React.createElement("button", { onClick: doBackup, style: { ...addBtnStyle, flex: 1, justifyContent: "center", padding: "10px 12px" } },
+                React.createElement(Download, { size: 15 }),
+                " Backup"),
+            React.createElement("button", { onClick: () => { var _a; return (_a = fileInputRef.current) === null || _a === void 0 ? void 0 : _a.click(); }, style: { ...addBtnStyle, flex: 1, justifyContent: "center", padding: "10px 12px" } },
+                React.createElement(Upload, { size: 15 }),
+                " Restaurar"),
+            React.createElement("input", { ref: fileInputRef, type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: onFileSelected })),
+        restoreError && React.createElement("div", { style: { color: "#FF9B9B", fontSize: 12.5, marginBottom: 10 } }, restoreError),
+        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 6 } },
+            React.createElement(SummaryCard, { label: "Hoje", value: brl(totalHoje) }),
+            React.createElement(SummaryCard, { label: "7 dias", value: brl(totalSemana) }),
+            React.createElement(SummaryCard, { label: "Total geral", value: brl(totalGeral), highlight: true })),
+        groups.length === 0 ? (React.createElement(EmptyState, { text: "Nenhuma entrega conclu\u00EDda ainda. Quando voc\u00EA marcar um pedido como entregue, ele aparece aqui." })) : (React.createElement("div", { style: { marginTop: 14 } }, groups.map((g) => {
+            const dayTotal = g.orders.reduce((s, o) => s + orderTotal(o), 0);
+            const isOpen = openDay === g.key;
+            const sortedOrders = [...g.orders].sort((a, b) => (b.deliveredAt || 0) - (a.deliveredAt || 0));
+            return (React.createElement("div", { key: g.key, style: { marginBottom: 10 } },
+                React.createElement("button", { onClick: () => setOpenDay(isOpen ? null : g.key), style: { ...cardStyle, width: "100%", marginBottom: isOpen ? 6 : 0, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                        React.createElement(Calendar, { size: 16, color: "#8B93A7" }),
+                        React.createElement("div", { style: { textAlign: "left" } },
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 16, color: "#F2F4F7" } }, dayLabel(g.key)),
+                            React.createElement("div", { style: { fontSize: 13, color: "#9AA2B5" } },
+                                g.orders.length,
+                                " entrega(s)"))),
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                        React.createElement("span", { style: { fontWeight: 800, fontSize: 16.5, color: "#34D399" } }, brl(dayTotal)),
+                        isOpen ? React.createElement(ChevronUp, { size: 16, color: "#F2F4F7" }) : React.createElement(ChevronDown, { size: 16, color: "#F2F4F7" }))),
+                isOpen &&
+                    sortedOrders.map((o) => {
+                        const client = clients.find((c) => c.id === o.clientId);
+                        const date = o.deliveredAt ? new Date(o.deliveredAt) : null;
+                        return (React.createElement("div", { key: o.id, style: { ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                            React.createElement("div", null,
+                                React.createElement("div", { style: { fontWeight: 700, fontSize: 16, color: "#F2F4F7" } }, client ? client.name : "Cliente removido"),
+                                date && (React.createElement("div", { style: { fontSize: 13, color: "#9AA2B5", marginTop: 3 } }, date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })))),
+                            React.createElement("div", { style: { fontWeight: 800, fontSize: 16.5, color: "#34D399" } }, brl(orderTotal(o)))));
+                    })));
+        }))),
+        pendingRestore && (React.createElement(ConfirmModal, { title: "Restaurar backup?", message: `Isso substitui os dados atuais por ${pendingRestore.clients.length} cliente(s) e ${pendingRestore.orders.length} pedido(s) do arquivo selecionado. Não pode ser desfeito.`, onConfirm: applyRestore, onCancel: () => setPendingRestore(null), confirmLabel: "Sim, restaurar", confirmColor: "#2DD4FF" }))));
+}
+function SummaryCard({ label, value, highlight }) {
+    return (React.createElement("div", { style: {
+            flex: 1,
+            background: highlight ? "#26190F" : "#181C26",
+            border: `1px solid ${highlight ? "#4A2E18" : "#262B38"}`,
+            borderRadius: 12,
+            padding: "10px 8px",
+            textAlign: "center",
+        } },
+        React.createElement("div", { style: { fontSize: 10.5, color: "#8B93A7", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3 } }, label),
+        React.createElement("div", { style: { fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: 800, color: highlight ? "#D97B29" : "#F2F4F7", marginTop: 3 } }, value)));
+}
+/* ---------------- UI bits ---------------- */
+function SectionTitle({ children }) {
+    return (React.createElement("h2", { style: { fontFamily: FONT_DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: 0.2, margin: 0 } }, children));
+}
+function EmptyState({ text }) {
+    return (React.createElement("div", { style: { ...cardStyle, textAlign: "center", color: "#6B7280", fontSize: 14, padding: "28px 16px" } }, text));
+}
+function Field({ label, value, onChange, placeholder, textarea, type }) {
+    return (React.createElement("div", { style: { marginBottom: 10 } },
+        React.createElement("label", { style: labelStyle }, label),
+        textarea ? (React.createElement("textarea", { value: value, onChange: (e) => onChange(e.target.value), placeholder: placeholder, rows: 2, style: { ...inputStyle, resize: "vertical" } })) : (React.createElement("input", { type: type || "text", value: value, onChange: (e) => onChange(e.target.value), placeholder: placeholder, style: inputStyle }))));
+}
+const cardStyle = {
+    background: "#181C26",
+    border: "1px solid #262B38",
+    borderRadius: 14,
+    padding: "14px 14px",
+    marginBottom: 10,
+};
+const labelStyle = {
+    display: "block",
+    fontSize: 11.5,
+    fontWeight: 700,
+    color: "#8B93A7",
+    marginBottom: 5,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+};
+const inputStyle = {
+    width: "100%",
+    background: "#13161D",
+    border: "1px solid #2C3140",
+    borderRadius: 9,
+    padding: "10px 12px",
+    color: "#F2F4F7",
+    fontSize: 14.5,
+    outline: "none",
+};
+const addBtnStyle = {
+    background: "#1F2430",
+    border: "1px solid #2C3140",
+    color: "#F2F4F7",
+    borderRadius: 9,
+    padding: "7px 12px",
+    fontSize: 13.5,
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+};
+const primaryBtnStyle = {
+    background: "#D97B29",
+    border: "none",
+    color: "#13161D",
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontSize: 14,
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+};
+const ghostBtnStyle = {
+    background: "none",
+    border: "1px solid #2C3140",
+    color: "#8B93A7",
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontSize: 14,
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+};
+const iconBtnStyle = {
+    background: "#1F2430",
+    border: "1px solid #2C3140",
+    borderRadius: 8,
+    width: 30,
+    height: 30,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    color: "#F2F4F7",
+};
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(RotaEntregas));
+</script>
+</body>
+</html>
