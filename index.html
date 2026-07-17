@@ -161,12 +161,12 @@ function loadLeaflet() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function geocodeAddress(address) {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+    // ADICIONAMOS O '&email=' NO FINAL DA URL ABAIXO:
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&email=hiago.ig.games@gmail.com`;
     try {
         const res = await fetch(url, {
             method: 'GET',
             headers: {
-                // Lembre-se de colocar um e-mail seu aqui para a API do OpenStreetMap aceitar
                 'User-Agent': 'RotaDeEntregasApp/1.0 (hiago.ig.games@gmail.com)' 
             }
         });
