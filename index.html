@@ -630,8 +630,21 @@ function ClientesTab({ clientes, PersisteClientes, ordens }) {
             return (React.createElement("div", { key: c.id, style: cardStyle },
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
                     React.createElement("div", { style: { flex: 1 } },
-                        React.createElement("div", { style: { fontWeight: 700, fontSize: 16 } }, c.name),
-                        React.createElement("div", { style: { color: "#8B93A7", fontSize: 13, marginTop: 3, display: "flex", gap: 5, alignItems: "flex-start" } },
+React.createElement("div", { style: { display: "flex", alignItems: "center" } },
+    React.createElement("div", { style: { fontWeight: 700, fontSize: 16 } }, c.name),
+    c.isTemporary && React.createElement("span", {
+        style: {
+            backgroundColor: "#FF9800",
+            color: "#000",
+            fontSize: 10,
+            fontWeight: "bold",
+            padding: "2px 6px",
+            borderRadius: 4,
+            marginLeft: 8
+        }
+    }, "⏱️ TEMPORÁRIO")
+),
+                            React.createElement("div", { style: { color: "#8B93A7", fontSize: 13, marginTop: 3, display: "flex", gap: 5, alignItems: "flex-start" } },
                             React.createElement(MapPin, { size: 13, style: { marginTop: 2, flexShrink: 0 } }),
                             " ",
                             c.address),
