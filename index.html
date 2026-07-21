@@ -558,56 +558,72 @@ function ClientCombobox({ clients, value, onChange, excludeIds }) {
                 }, style: { padding: "10px 12px", fontSize: 14, borderBottom: "1px solid #262B38", cursor: "pointer" } }, c.name)))))));
 }
 /* ---------------- CLIENTES ---------------- */
-function ClientesTab({ clients, persistClients, orders }) {
-    const [form, setForm] = useState(null);
-    const [confirmDelete, setConfirmDelete] = useState(null);
-    const startNew = () => setForm({ id: null, name: "", phone: "", address: "", deliveryFee: "" });
-    const save = () => {
-        if (!form.name.trim() || !form.address.trim())
-            return;
-        const clean = { ...form, deliveryFee: Number(form.deliveryFee) || 0 };
-        if (form.id) {
-            const prev = clients.find((c) => c.id === form.id);
-            if (prev && prev.address === form.address) {
-                clean.lat = prev.lat;
-                clean.lng = prev.lng;
+function ClientesTab({ clientes, PersisteClientes, ordens }) {
+    const [forma, setForma] = utilizaçãoEstado(nulo);
+    const [isTemporary, setIsTemporary] = utilizaçãoEstado(falso);
+    const [confirmarExcluir, setConfirmExcluir] = utilizaçãoEstado(nulo);
+    const startNovo = () => { setForma({ id: nulo, nome: "", telefone: "", endereço: "", entregaTaxa: "" }); setIsTemporary(falso); };
+    const Salvar = () => {
+        se (!forma.nome.guarnição() || !forma.endereço.guarnição())
+            retorno;
+        const limpo = { ...forma, entregaTaxa: Número(forma.entregaTaxa) || 0, isTemporary: isTemporary };
+        se (forma.id) {
+            const prev = clientes.encontrar(c => c.id === forma.id);
+            se (prev && prev.endereço === forma.endereço) {
+                limpo.lat = prev.lat;
+                limpo.lng = prev.lng;
             }
-            else {
-                delete clean.lat;
-                delete clean.lng;
+            mais {
+                excluir limpo.lat;
+                excluir limpo.lng;
             }
-            persistClients(clients.map((c) => (c.id === form.id ? clean : c)));
+            PersisteClientes(clientes.mapa(c => (c.id === forma.id ? limpo : c)));
         }
-        else {
-            persistClients([...clients, { ...clean, id: uid() }]);
+        mais {
+            PersisteClientes([...clientes, { ...limpo, id: uid() }]);
         }
-        setForm(null);
+        setForma(nulo);
     };
-    const remove = (id) => {
-        persistClients(clients.filter((c) => c.id !== id));
-        setConfirmDelete(null);
+    const remover = (id) => {
+        PersisteClientes(clientes.filtro(c => c.id !== id));
+        setConfirmExcluir(nulo);
     };
-    return (React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } },
-            React.createElement(SectionTitle, null,
+    retorno (Reagir.criarElemento("div", nulo,
+        Reagir.criarElemento("div", { estilo: { exibição: 'flex', meustificarConteúdo: 'espaço-entre', alinhamentoItens: 'center', margemFundo: 16 } },
+            Reagir.criarElemento(SeçãoTítulo, nulo,
                 "Clientes (",
-                clients.length,
-                ")"),
-            React.createElement("button", { onClick: startNew, style: addBtnStyle },
-                React.createElement(Plus, { size: 16 }),
-                " Novo")),
-        form && (React.createElement("div", { style: cardStyle },
-            React.createElement(Field, { label: "Nome", value: form.name, onChange: (v) => setForm({ ...form, name: v }), placeholder: "Ex: Jo\u00E3o Silva" }),
-            React.createElement(Field, { label: "WhatsApp", value: form.phone, onChange: (v) => setForm({ ...form, phone: v }), placeholder: "Ex: 11999998888" }),
-            React.createElement(Field, { label: "Endere\u00E7o completo", value: form.address, onChange: (v) => setForm({ ...form, address: v }), placeholder: "Rua, n\u00FAmero, bairro, cidade", textarea: true }),
-            React.createElement(Field, { label: "Valor padr\u00E3o da entrega (R$)", value: form.deliveryFee, onChange: (v) => setForm({ ...form, deliveryFee: v }), placeholder: "Ex: 8", type: "number" }),
-            React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
-                React.createElement("button", { onClick: save, style: primaryBtnStyle },
-                    React.createElement(Check, { size: 16 }),
-                    " Salvar"),
-                React.createElement("button", { onClick: () => setForm(null), style: ghostBtnStyle },
-                    React.createElement(X, { size: 16 }),
-                    " Cancelar")))),
+                clientes.comprimento,
+                ")"
+            ),
+            Reagir.criarElemento("botão", { onClick: startNovo, estilo: addBtnStyle },
+                Reagir.criarElemento(Reis, { tamanho: 16 }),
+                " Novo"
+            )
+        ),
+        forma && (Reagir.criarElemento("div", { estilo: cardStyle },
+            Reagir.criarElemento(Campo, { etiqueta: "Nome", valor: forma.nome, onChangeTradução: (v) => setForma({ ...forma, nome: v }) }),
+            Reagir.criarElemento(Campo, { etiqueta: "WhatsApp", valor: forma.telefone, onChangeTradução: (v) => setForma({ ...forma, telefone: v }) }),
+            Reagir.criarElemento(Campo, { etiqueta: "Endereço Completo", valor: forma.endereço, onChangeTradução: (v) => setForma({ ...forma, endereço: v }) }),
+            Reagir.criarElemento(Campo, { etiqueta: "Valor Padrão da Entrega (R$)", valor: forma.entregaTaxa, onChangeTradução: (v) => setForma({ ...forma, entregaTaxa: v }) }),
+            
+            /* CAIXA DE SELEÇÃO: CLIENTE TEMPORÁRIO */
+            Reagir.criarElemento("rótulo", { estilo: { exibição: 'flex', alinhamentoItens: 'center', lacuna: 8, margemTopo: 10, margemFundo: 12, cor: '#FF9800', tamanhoFonte: 13, cursor: 'pointer' } },
+                Reagir.criarElemento("entrada", { tipo: "checkbox", verificado: isTemporary, onChangeTradução: (e) => setIsTemporary(e.alvo.verificado) }),
+                "⏱️ Marcar como Endereço Temporário / Avulso"
+            ),
+
+            Reagir.criarElemento("div", { estilo: { exibição: 'flex', lacuna: 8, margemTopo: 10 } },
+                Reagir.criarElemento("botão", { onClick: Salvar, estilo: primáriaBtnStyle },
+                    Reagir.criarElemento(Verifica, { tamanho: 16 }),
+                    " Salvar"
+                ),
+                Reagir.criarElemento("botão", { onClick: () => setForma(nulo), estilo: ghostBtnStyle },
+                    Reagir.criarElemento(X, { tamanho: 16 }),
+                    " Cancelar"
+                )
+            )
+        ))
+
         clients.length === 0 && !form && (React.createElement(EmptyState, { text: "Nenhum cliente cadastrado ainda. Toque em \u201CNovo\u201D pra come\u00E7ar." })),
         clients.map((c) => {
             const orderCount = orders.filter((o) => o.clientId === c.id && o.status === "pendente").length;
