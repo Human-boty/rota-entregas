@@ -1,10 +1,10 @@
 {
-  "name": "Rota de Entregas",
-  "short_name": "RotaEntregas",
+  "name": "Rotas",
+  "short_name": "Rotas",
   "description": "Aplicativo para gerenciamento e otimização de rotas de entrega diárias.",
   "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#13161D",
+  "background_color": "#000000",
   "theme_color": "#13161D",
   "orientation": "portrait-primary",
   "icons": [
@@ -15,10 +15,10 @@
       "purpose": "any"
     },
     {
-      "src": "launchericon-512x512.png",
+      "src": "launchericon-squared.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "maskable any"
     }
   ]
 }
