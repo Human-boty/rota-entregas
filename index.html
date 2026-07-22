@@ -1334,21 +1334,31 @@ const ghostBtnStyle = {
     gap: 6,
 };
 const iconBtnStyle = {
-    background: "#1F2430",
-    border: "1px solid #2C3140",
-    borderRadius: 8,
-    width: 30,
-    height: 30,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    color: "#F2F4F7",
+  background: "#1F2430",
+  border: "1px solid #2C3140",
+  borderRadius: 8,
+  width: 36,
+  height: 36,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  color: "#F2F4F7",
 };
+
+// --- REGISTRO DO SERVICE WORKER ---
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(RotaEntregas));
+
+// --- RENDERIZAÇÃO DA APLICAÇÃO ---
+const rootElement = document.getElementById("root");
+if (ReactDOM.createRoot) {
+  ReactDOM.createRoot(rootElement).render(React.createElement(RotaEntregas));
+} else {
+  ReactDOM.render(React.createElement(RotaEntregas), rootElement);
+}
 </script>
 </body>
 </html>
+
